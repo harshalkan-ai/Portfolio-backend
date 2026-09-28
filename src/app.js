@@ -39,7 +39,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // 404 Route Handler
-app.use('*', (req, res) => {
+app.use((req, res) => {
     res.status(404).json({
         success: false,
         message: `Resource not found on endpoint: ${req.originalUrl}`,
