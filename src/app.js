@@ -1,14 +1,14 @@
 import express from 'express';
 import cors from 'cors';
+import errorHandler from './middlewares/errorHandler.js';
 
-// 1. Initialize Express application
 const app = express();
 
-// 2. Body Parser Middlewares
+// Body Parser Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// 3. Cross-Origin Resource Sharing (CORS) Configuration
+// CORS Configuration
 const allowedOrigins = [
     process.env.CLIENT_URL || 'http://localhost:3000',
     process.env.ADMIN_URL || 'http://localhost:5173',
@@ -17,7 +17,6 @@ const allowedOrigins = [
 app.use(
     cors({
         origin: (origin, callback) => {
-            // Allow requests with no origin (like mobile apps, curl, or Postman)
             if (!origin) return callback(null, true);
             if (allowedOrigins.indexOf(origin) === -1) {
                 const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
@@ -29,7 +28,7 @@ app.use(
     })
 );
 
-// 4. Base Health Check Route
+// Health Check
 app.get('/api/health', (req, res) => {
     res.status(200).json({
         success: true,
@@ -39,12 +38,15 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-// 5. Catch-All 404 Route (For undefined endpoints)
-app.use((req, res) => {
+// 404 Route Handler
+app.use('*', (req, res) => {
     res.status(404).json({
         success: false,
         message: `Resource not found on endpoint: ${req.originalUrl}`,
     });
 });
+
+// Centralized Error Handler (MUST BE THE LAST MIDDLEWARE)
+app.use(errorHandler);
 
 export default app;
