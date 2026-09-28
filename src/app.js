@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import errorHandler from './middlewares/errorHandler.js';
+import authRoutes from './routes/authRoutes.js';
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.get('/api/health', (req, res) => {
         timestamp: new Date().toISOString(),
     });
 });
+app.use('/api/auth', authRoutes);
 
 // 404 Route Handler
 app.use((req, res) => {
