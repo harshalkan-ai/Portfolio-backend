@@ -1,89 +1,44 @@
+import jwt from 'jsonwebtoken';
 import User from '../models/userModel.js';
-import generateToken from '../utils/generateToken.js';
 
 /**
- * @desc    Register initial Admin (One-time setup)
- * @route   POST /api/auth/register
- * @access  Public
+ * Middleware to protect private routes
+ * Verifies JWT token sent in the Authorization header
  */
-export const registerAdmin = async (req, res, next) => {
-    try {
-        const { name, email, password } = req.body;
+export const protect = async (req, res, next) => {
+    let token;
 
-        // 1. Check if all required fields were sent
-        if (!name || !email || !password) {
-            res.status(400);
-            throw new Error('Please provide name, email, and password');
-        }
+    // 1. Check if token exists in the Authorization header (Format: Bearer <token>)
+    if (
+        req.headers.authorization &&
+        req.headers.authorization.startsWith('Bearer')
+    ) {
+        try {
+            // 2. Extract token from header string ("Bearer eyaabb...")
+            token = req.headers.authorization.split(' ')[1];
 
-        // 2. Check if user already exists
-        const userExists = await User.findOne({ email });
-        if (userExists) {
-            res.status(400);
-            throw new Error('An account with this email already exists');
-        }
+            // 3. Verify token signature using our secret master key
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // 3. Create user (password is automatically hashed by userModel.js)
-        const user = await User.create({
-            name,
-            email,
-            password,
-            role: 'admin',
-        });
+            // 4. Find the user associated with this token (excluding password)
+            req.user = await User.findById(decoded.id).select('-password');
 
-        // 4. Return user info and shiny new token
-        res.status(201).json({
-            success: true,
-            message: 'Admin account created successfully',
-            data: {
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                role: user.role,
-                token: generateToken(user._id),
-            },
-        });
-    } catch (error) {
-        next(error); // Sends error directly to our errorHandler.js
-    }
-};
+            if (!req.user) {
+                res.status(401);
+                throw new Error('User not found. Authorization denied.');
+            }
 
-/**
- * @desc    Authenticate Admin & get token (Login)
- * @route   POST /api/auth/login
- * @access  Public
- */
-export const loginAdmin = async (req, res, next) => {
-    try {
-        const { email, password } = req.body;
-
-        // 1. Validation check
-        if (!email || !password) {
-            res.status(400);
-            throw new Error('Please provide both email and password');
-        }
-
-        // 2. Find user by email (we explicitly select the password because we set select:false in userModel)
-        const user = await User.findOne({ email }).select('+password');
-
-        // 3. Check if user exists AND password matches
-        if (user && (await user.matchPassword(password))) {
-            res.status(200).json({
-                success: true,
-                message: 'Logged in successfully',
-                data: {
-                    _id: user._id,
-                    name: user.name,
-                    email: user.email,
-                    role: user.role,
-                    token: generateToken(user._id),
-                },
-            });
-        } else {
+            // 5. Everything is valid -> Let them through to the next function!
+            next();
+        } catch (error) {
             res.status(401);
-            throw new Error('Invalid email or password');
+            next(new Error('Not authorized: Invalid or expired token'));
         }
-    } catch (error) {
-        next(error);
+    }
+
+    // If no token was provided in the header
+    if (!token) {
+        res.status(401);
+        next(new Error('Not authorized: No token provided'));
     }
 };
